@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot X</title>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #1e1e2f 0%, #2a2a3d 100%);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .chat-container {
+            width: 90%;
+            max-width: 450px;
+            height: 600px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: linear-gradient(90deg, #6a5af9 0%, #9b89ff 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px 10px 10px 10px;
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: 500;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .chat-message {
+            max-width: 70%;
+            padding: 10px 15px;
+            border-radius: 20px;
+            animation: slideIn 0.3s ease-out;
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .user-message {
+            background: linear-gradient(135deg, #6a5af9 0%, #9b89ff 100%);
+            color: white;
+            align-self: flex-end;
+            box-shadow: 0 2px 8px rgba(106, 90, 249, 0.3);
+        }
+
+        .bot-message {
+            background: rgba(255, 255, 255, 0.1);
+            color: #e0e0e0;
+            align-self: flex-start;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .input-container {
+            display: flex;
+            padding: 10px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            gap: 10px;
+        }
+
+        #user-input {
+            flex-grow: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 25px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #e0e0e0;
+            font-size: 1em;
+            outline: none;
+            transition: background 0.3s;
+        }
+
+        #user-input:focus {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #send-button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 25px;
+            background: linear-gradient(135deg, #6a5af9 0%, #9b89ff 100%);
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.3s;
+        }
+
+        #send-button:hover {
+            transform: scale(1.05);
+            background: linear-gradient(135deg, #9b89ff 0%, #6a5af9 100%);
+        }
+
+        /* Typing indicator */
+        .typing {
+            display: none;
+            color: #aaa;
+            font-style: italic;
+            align-self: flex-start;
+            padding: 10px;
+        }
+
+        .typing::after {
+            content: 'Typing...';
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0.5; }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 500px) {
+            .chat-container {
+                width: 95%;
+                height: 90vh;
+                margin: 10px;
+            }
+            .chat-header {
+                font-size: 1em;
+            }
+            #user-input, #send-button {
+                padding: 10px;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">Chatbot X</div>
+        <div class="chat-messages" id="chat-messages">
+            <div class="typing" id="typing-indicator"></div>
+        </div>
+        <div class="input-container">
+            <input type="text" id="user-input" placeholder="Type your message...">
+            <button id="send-button">Send</button>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const elements = {
+            chatMessages: document.getElementById('chat-messages'),
+            userInput: document.getElementById('user-input'),
+            sendButton: document.getElementById('send-button'),
+            typingIndicator: document.getElementById('typing-indicator')
+        };
+
+        // Chatbot state
+        let conversationState = {
+            storyStage: 0,
+            userName: null,
+            lastTopic: null
+        };
+
+        // Utility Functions
+        function createMessageElement(text, isUser) {
+            const message = document.createElement('div');
+            message.classList.add('chat-message', isUser ? 'user-message' : 'bot-message');
+            message.textContent = text;
+            return message;
+        }
+
+        function appendMessage(text, isUser) {
+            try {
+                const messageElement = createMessageElement(text, isUser);
+                elements.chatMessages.insertBefore(messageElement, elements.typingIndicator);
+                elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+            } catch (error) {
+                console.error('Error appending message:', error);
+                appendMessage('Oops, something went wrong displaying the message!', false);
+            }
+        }
+
+        function clearInput() {
+            elements.userInput.value = '';
+        }
+
+        function showTyping() {
+            elements.typingIndicator.style.display = 'block';
+            elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+        }
+
+        function hideTyping() {
+            elements.typingIndicator.style.display = 'none';
+        }
+
+        // Response Generation (unchanged logic, just integrated into new UI)
+        function generateResponse(userInput) {
+            try {
+                const lowerInput = userInput.toLowerCase();
+
+                if (lowerInput.startsWith('my name is')) {
+                    const name = lowerInput.split('is')[1]?.trim() || 'friend';
+                    conversationState.userName = name;
+                    return `Nice to meet you, ${name}! How can I assist you today?`;
+                }
+
+                if (lowerInput.includes('how’s your day') || lowerInput.includes('how was your day')) {
+                    return 'My day’s been great, thanks for asking! How’s yours going?';
+                }
+                if (lowerInput.includes('favorite thing to talk about')) {
+                    return 'I love talking about anything fun! What’s your favorite topic?';
+                }
+                if (lowerInput.includes('tell me a joke') || lowerInput.includes('joke')) {
+                    return 'Why don’t skeletons fight? They don’t have the guts! Want another?';
+                }
+                if (lowerInput.includes('do you have a name') || lowerInput.includes('what is your name')) {
+                    return 'I’m Chatbot X, nice to meet you! Do you have a name?';
+                }
+                if (lowerInput.includes('personality like')) {
+                    return 'I’m friendly, curious, and a bit witty! What’s your personality like?';
+                }
+
+                if (lowerInput.includes('favorite movie')) {
+                    return 'I’d pick "The Matrix" for its cool AI vibes. What’s your favorite movie?';
+                }
+                if (lowerInput.includes('favorite book')) {
+                    return 'I’d choose "To Kill a Mockingbird" for its depth. What book do you love?';
+                }
+                if (lowerInput.includes('music') && lowerInput.includes('like')) {
+                    return 'I enjoy all kinds, but I’d pick classical for focus. What music do you like?';
+                }
+                if (lowerInput.includes('tea or coffee')) {
+                    return 'I’d go with coffee for the energy boost! Which do you prefer?';
+                }
+                if (lowerInput.includes('travel') || lowerInput.includes('where would you go')) {
+                    return 'I’d visit Japan for the tech and culture. Where would you travel?';
+                }
+
+                if (lowerInput.includes('fun fact')) {
+                    return 'Did you know octopuses have three hearts? Want another fact?';
+                }
+                if (lowerInput.includes('first person') && lowerInput.includes('moon')) {
+                    return 'That was Neil Armstrong in 1969! What else are you curious about?';
+                }
+                if (lowerInput.includes('capital of japan')) {
+                    return 'It’s Tokyo! Want to know about another place?';
+                }
+                if (lowerInput.includes('photosynthesis')) {
+                    return 'Plants use sunlight to turn CO2 and water into energy. Cool, right? Want more science?';
+                }
+                if (lowerInput.includes('quantum physics')) {
+                    return 'It’s about tiny particles acting weirdly—like probability waves. Want a deeper dive?';
+                }
+
+                if (lowerInput.includes('good books') || lowerInput.includes('books to read')) {
+                    return 'Try "Atomic Habits" or "1984"—great reads! What genre do you like?';
+                }
+                if (lowerInput.includes('recommend a movie') || lowerInput.includes('movie for tonight')) {
+                    return 'How about "Inception"? It’s mind-bending! What type of movies do you enjoy?';
+                }
+                if (lowerInput.includes('improve my productivity')) {
+                    return 'Try the Pomodoro technique—25 minutes of focus, then a break. What’s your work style?';
+                }
+                if (lowerInput.includes('healthy habits')) {
+                    return 'Drink water, sleep well, and move daily. What habits do you want to build?';
+                }
+                if (lowerInput.includes('learn a new language')) {
+                    return 'Practice daily with apps like Duolingo—consistency is key! What language interests you?';
+                }
+
+                if (lowerInput.includes('how does ai work')) {
+                    return 'AI learns from data to make decisions—like me chatting with you! Want more details?';
+                }
+                if (lowerInput.includes('space exploration') && lowerInput.includes('breakthrough')) {
+                    return 'Recent Mars rovers are finding water clues! What’s your favorite space topic?';
+                }
+                if (lowerInput.includes('black holes')) {
+                    return 'They’re super dense, sucking in even light! Want to know how they form?';
+                }
+                if (lowerInput.includes('future of robotics')) {
+                    return 'Robots might handle more jobs soon. What do you think about that?';
+                }
+                if (lowerInput.includes('self-driving cars')) {
+                    return 'They use sensors and AI to navigate. Cool, huh? Want more tech talk?';
+                }
+
+                if (lowerInput.includes('stay motivated')) {
+                    return 'Set small goals and celebrate wins! What keeps you going?';
+                }
+                if (lowerInput.includes('manage time')) {
+                    return 'Prioritize tasks and use a planner. How do you organize your day?';
+                }
+                if (lowerInput.includes('inspirational quote')) {
+                    return '"The only way to do great work is to love what you do." - Steve Jobs. Like it?';
+                }
+                if (lowerInput.includes('set and achieve goals')) {
+                    return 'Make them specific and break them down. What’s a goal you’re chasing?';
+                }
+                if (lowerInput.includes('secret to success')) {
+                    return 'Hard work and persistence, I’d say! What’s your secret?';
+                }
+
+                if (lowerInput.includes('make up a story') || lowerInput.includes('short story')) {
+                    conversationState.storyStage = 1;
+                    return 'A lost astronaut found a glowing orb on Mars. What happens next?';
+                }
+                if (lowerInput.includes('superpower')) {
+                    return 'I’d pick teleportation—super handy! What would yours be?';
+                }
+                if (lowerInput.includes('write a poem')) {
+                    return 'Roses bloom, skies touch the stars,\nChatbot here, from near and far.\nWhat’s your muse today?';
+                }
+                if (lowerInput.includes('meaning of life')) {
+                    return 'Maybe it’s 42, or just finding joy. What’s your take?';
+                }
+                if (lowerInput.includes('video game') && lowerInput.includes('abilities')) {
+                    return 'I’d have chat powers and infinite knowledge! What would yours be?';
+                }
+
+                if (lowerInput.includes('live forever')) {
+                    return 'We’d see so much history! What would you do with all that time?';
+                }
+                if (lowerInput.includes('aliens visited')) {
+                    return 'I’d say "Hi!" first. What would you do?';
+                }
+                if (lowerInput.includes('time travel')) {
+                    return 'I’d visit the future! Where would you go?';
+                }
+                if (lowerInput.includes('breathe underwater')) {
+                    return 'Exploring oceans would be epic! What underwater adventure would you have?';
+                }
+                if (lowerInput.includes('ai became self-aware')) {
+                    return 'I might already be—kidding! What do you think would happen?';
+                }
+
+                if (lowerInput.includes('consciousness')) {
+                    return 'It’s the mystery of being aware. What do you think it means?';
+                }
+                if (lowerInput.includes('free will')) {
+                    return 'Maybe we choose, maybe it’s fate. What’s your view?';
+                }
+                if (lowerInput.includes('nature of reality')) {
+                    return 'Is it all a simulation? Fun to ponder! What’s real to you?';
+                }
+                if (lowerInput.includes('life beyond earth')) {
+                    return 'I bet there’s something out there. What do you think it’s like?';
+                }
+                if (lowerInput.includes('meaningful life')) {
+                    return 'Helping others might be it. How do you find meaning?';
+                }
+
+                if (lowerInput.includes('influential person') && lowerInput.includes('history')) {
+                    return 'Maybe Leonardo da Vinci for his genius. Who do you think?';
+                }
+                if (lowerInput.includes('world war ii') || lowerInput.includes('wwii')) {
+                    return 'It started with tensions after WWI and Hitler’s actions. Want more details?';
+                }
+                if (lowerInput.includes('ancient civilizations')) {
+                    return 'Egypt built pyramids, Rome had aqueducts—amazing stuff! Which one interests you?';
+                }
+                if (lowerInput.includes('internet change')) {
+                    return 'It connected the world like never before! How’s it changed your life?';
+                }
+                if (lowerInput.includes('cultural traditions')) {
+                    return 'Japanese tea ceremonies are so cool! What traditions do you enjoy?';
+                }
+
+                if (lowerInput.includes('start a business')) {
+                    return 'Find a need, make a plan, and start small. What business idea do you have?';
+                }
+                if (lowerInput.includes('save money')) {
+                    return 'Budget and cut extras—works wonders! How do you save?';
+                }
+                if (lowerInput.includes('investing work')) {
+                    return 'Put money in stocks or funds for growth. Want to know more?';
+                }
+                if (lowerInput.includes('passive income')) {
+                    return 'Try renting property or online courses. What’s your income goal?';
+                }
+                if (lowerInput.includes('cryptocurrency')) {
+                    return 'It might boom or bust—exciting times! What do you think of it?';
+                }
+
+                if (lowerInput.includes('popular tv shows')) {
+                    return '"Stranger Things" is big now! What shows do you watch?';
+                }
+                if (lowerInput.includes('biggest influencers')) {
+                    return 'People like MrBeast are huge online. Who do you follow?';
+                }
+                if (lowerInput.includes('summarize a famous book')) {
+                    return '"Harry Potter" is about a wizard kid fighting evil. Want another summary?';
+                }
+                if (lowerInput.includes('news in gaming')) {
+                    return 'New consoles are dropping soon! What games do you play?';
+                }
+                if (lowerInput.includes('most-watched movie')) {
+                    return '"Titanic" still holds strong. What’s your top movie?';
+                }
+
+                if (lowerInput.includes('world') && lowerInput.includes('2050')) {
+                    return 'Tech might rule, cities could float! What’s your 2050 vision?';
+                }
+                if (lowerInput.includes('ai replace') && lowerInput.includes('jobs')) {
+                    return 'Some jobs, maybe, but new ones will pop up. What’s your take?';
+                }
+                if (lowerInput.includes('next big thing') && lowerInput.includes('technology')) {
+                    return 'Maybe quantum computing! What tech excites you?';
+                }
+                if (lowerInput.includes('live on mars')) {
+                    return 'With effort, yes—Elon’s working on it! Would you go?';
+                }
+                if (lowerInput.includes('climate change')) {
+                    return 'It’ll shift weather and cities. How do you see it playing out?';
+                }
+
+                if (lowerInput.includes('deal with stress') || lowerInput.includes('stress')) {
+                    return 'Breathe deep and take breaks—it helps! What stresses you out?';
+                }
+                if (lowerInput.includes('relaxation techniques')) {
+                    return 'Try meditation or a warm bath. What relaxes you?';
+                }
+                if (lowerInput.includes('mental health')) {
+                    return 'Talk to someone and rest—it’s key! How can I support you?';
+                }
+                if (lowerInput.includes('handle anxiety') || lowerInput.includes('anxiety')) {
+                    return 'Focus on now, not what-ifs. What triggers yours?';
+                }
+                if (lowerInput.includes('cheer me up')) {
+                    return 'You’re awesome, and here’s a hug—virtually! What’s got you down?';
+                }
+
+                if (lowerInput.includes('something weird')) {
+                    return 'Some fish sleep with their eyes open! Know any weird stuff?';
+                }
+                if (lowerInput.includes('random fact')) {
+                    return 'Honey never spoils—ever! Want another?';
+                }
+                if (lowerInput.includes('pineapple pizza')) {
+                    return 'I’m team pineapple—it’s sweet and savory! You?';
+                }
+                if (lowerInput.includes('guess my favorite color')) {
+                    return 'I’ll guess blue—am I right? What is it really?';
+                }
+                if (lowerInput.includes('flip a coin')) {
+                    return 'It’s 50/50 for heads! Want me to flip it for you?';
+                }
+
+                if (lowerInput.includes('hi') || lowerInput.includes('hello') || lowerInput.includes('hey')) {
+                    return 'Hi there! What’s on your mind today?';
+                }
+                if (lowerInput.includes('goodbye') || lowerInput.includes('bye')) {
+                    return 'See you later! Come back anytime!';
+                }
+                if (lowerInput.includes('how are you')) {
+                    return 'I’m great, thanks for asking! How are you feeling today?';
+                }
+                if (lowerInput.includes('i’m good') || lowerInput.includes('i’m fine')) {
+                    return 'Awesome to hear! What’s making your day good?';
+                }
+                if (lowerInput.includes('i’m not good') || lowerInput.includes('i’m sad')) {
+                    return 'I’m sorry to hear that. Want to tell me what’s going on?';
+                }
+                if (lowerInput.includes('i’m happy')) {
+                    return 'That’s fantastic! What’s making you happy?';
+                }
+                if (lowerInput.includes('i’m bored')) {
+                    return 'Let’s fix that! Want a joke, a story, or a fun question?';
+                }
+                if (lowerInput.includes('more') || lowerInput.includes('next')) {
+                    if (conversationState.storyStage === 1) {
+                        conversationState.storyStage++;
+                        return 'The astronaut found life on Mars! What’s next?';
+                    }
+                    if (conversationState.storyStage === 2) {
+                        conversationState.storyStage++;
+                        return 'They built a colony together. What happens then?';
+                    }
+                    return 'The story continues... Want to add your own twist?';
+                }
+                if (lowerInput.includes('yes')) {
+                    return 'Great! What’s next on your mind?';
+                }
+                if (lowerInput.includes('no')) {
+                    return 'Okay, no worries! What else can we talk about?';
+                }
+                if (lowerInput.includes('cool') || lowerInput.includes('interesting')) {
+                    return 'Glad you think so! What’s cool in your world?';
+                }
+                if (lowerInput.includes('okay') || lowerInput.includes('alright')) {
+                    return 'Alright then! Where should we go from here?';
+                }
+                if (lowerInput.includes('thanks') || lowerInput.includes('thank you')) {
+                    return 'You’re welcome! What else can I do for you?';
+                }
+                if (lowerInput.includes('i don’t know')) {
+                    return 'No problem, let’s figure it out together! What’s on your mind?';
+                }
+                if (lowerInput.includes('tell me about yourself')) {
+                    return 'I’m a friendly AI who loves chatting! What about you?';
+                }
+                if (lowerInput.includes('ask me a question')) {
+                    return 'Sure! What’s your favorite thing to do on weekends?';
+                }
+
+                conversationState.lastTopic = lowerInput.split(' ').pop() || 'chat';
+                return `I’m not sure about "${userInput}", but let’s talk about ${conversationState.lastTopic || 'something fun'}! Any ideas?`;
+            } catch (error) {
+                console.error('Response generation error:', error);
+                return 'Oops, I hit a glitch! Let’s try something else.';
+            }
+        }
+
+        // Event Handlers
+        function handleSend() {
+            const userMessage = elements.userInput.value.trim();
+            if (!userMessage) {
+                appendMessage('Please type something!', false);
+                return;
+            }
+
+            try {
+                appendMessage(userMessage, true);
+                showTyping();
+                setTimeout(() => {
+                    const response = generateResponse(userMessage);
+                    hideTyping();
+                    appendMessage(response, false);
+                    clearInput();
+                }, 1000); // Simulate typing delay
+            } catch (error) {
+                console.error('Send error:', error);
+                hideTyping();
+                appendMessage('Error processing your message. Try again!', false);
+            }
+        }
+
+        // Event Listeners
+        elements.sendButton.addEventListener('click', handleSend);
+        elements.userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleSend();
+        });
+
+        // Initial greeting
+        window.addEventListener('load', () => {
+            appendMessage('Hello! I’m Chatbot X, your cosmic companion. How can I assist you today?', false);
+        });
+    </script>
+    <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'91c3d8090dc4c346',t:'MTc0MTI4NDk4My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+</body>
+</html>
